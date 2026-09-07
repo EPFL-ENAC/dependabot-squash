@@ -191,9 +191,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.skip_install and updated:
         print("\n=== Regenerating lockfiles ===")
-        for target in touched:
-            for warning in lockfiles.regenerate_for(target, repo_root):
-                print(f"  ⚠ {warning}")
+        warnings = [w for target in touched for w in lockfiles.regenerate_for(target, repo_root)]
+        for warning in warnings:
+            print(f"  ⚠ {warning}")
+        if warnings:
+            print("\nLockfile regeneration failed. Manifest edits are in your working tree;")
+            print("fix the lockfile(s) by hand, then rerun with --skip-install to close the PRs.")
+            return 1
 
     closable, hold = _classify(prs, pr_deps, handlers, args.close_removed)
     _report(closable, hold)

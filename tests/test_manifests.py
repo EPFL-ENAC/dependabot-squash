@@ -55,6 +55,26 @@ def test_pep621(tmp_path):
     assert "httpx[http2]>=0.28.0" in path.read_text()
 
 
+def test_pep621_dependency_groups(tmp_path):
+    # Regression: uv dev deps live in [dependency-groups]; update_dep bumped them
+    # but read_dep missed them, so their PRs stayed open as "removed".
+    path = tmp_path / "pyproject.toml"
+    path.write_text(
+        '[project]\nname = "x"\n'
+        '[dependency-groups]\n'
+        'lint = ["ruff>=0.17.5"]\n'
+        'dev = [{include-group = "lint"}, "ty>=0.0.104"]\n'
+    )
+    handlers = PyProjectPep621Handler.discover(tmp_path)
+    assert len(handlers) == 1
+    handler = handlers[0]
+
+    assert handler.update_dep("ty", "0.0.107") is True
+    assert handler.satisfies("ty", "0.0.107") is Satisfaction.SATISFIED
+    assert handler.satisfies("ruff", "0.17.5") is Satisfaction.SATISFIED
+    assert handler.satisfies("ruff", "0.17.6") is Satisfaction.BELOW
+
+
 def test_poetry(tmp_path):
     path = tmp_path / "pyproject.toml"
     path.write_text(

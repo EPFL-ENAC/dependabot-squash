@@ -1,4 +1,4 @@
-"""Handler for PEP 621 dependencies and PEP 735 ``[dependency-groups]`` (uv / standard pyproject)."""
+"""Handler for PEP 621 dependencies and PEP 735 ``[dependency-groups]`` (uv, pyproject)."""
 
 from __future__ import annotations
 

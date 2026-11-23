@@ -57,3 +57,23 @@ def test_conflicting_diff_changes_nothing(tmp_path, monkeypatch):
     assert not actions.apply(diff, repo)
     assert wf.read_text() == edited
     assert not actions.is_applied(diff, repo)
+
+
+def test_pr_diff_skips_base_merged_into_the_pr(tmp_path, monkeypatch):
+    # Regression: "Update branch" puts a merge commit at the PR tip; `ref~1..ref`
+    # then diffed the base, which read as already applied and closed the PR.
+    repo, wf, pr = _repo_with_pr(tmp_path)
+    monkeypatch.chdir(repo)
+    (repo / "other.txt").write_text("base moved\n")
+    _git(repo, "add", "other.txt")
+    _git(repo, "commit", "-qm", "base moves")
+    _git(repo, "switch", "-q", "bump")
+    _git(repo, "merge", "-q", "--no-ff", "-m", "update branch", "main")
+    _git(repo, "update-ref", f"refs/remotes/origin/{REF}", "HEAD")
+    _git(repo, "switch", "-q", "main")
+
+    diff = actions.pr_diff(pr)
+    assert "other.txt" not in diff
+    assert not actions.is_applied(diff, repo)
+    assert actions.apply(diff, repo)
+    assert NEW in wf.read_text()

@@ -18,10 +18,10 @@ def is_actions_pr(pr: PullRequest) -> bool:
 
 
 def pr_diff(pr: PullRequest) -> str:
-    """Diff of the PR's single Dependabot commit."""
+    """Changes the PR adds, from its merge base (the tip may be a base merge)."""
     ref = f"origin/{pr.head_ref}"
     return subprocess.run(
-        ["git", "diff", f"{ref}~1", ref], check=True, capture_output=True, text=True
+        ["git", "diff", f"HEAD...{ref}"], check=True, capture_output=True, text=True
     ).stdout
 
 

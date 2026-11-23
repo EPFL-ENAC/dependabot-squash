@@ -1,6 +1,6 @@
 [project]
 name = "dependabot-squash"
-version = "0.1.0"
+version = "0.2.0"
 description = "Consolidate open Dependabot PRs into a single local commit, then close the superseded PRs."
 readme = "README.md"
 requires-python = ">=3.11"

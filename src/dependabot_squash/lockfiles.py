@@ -8,10 +8,19 @@ from pathlib import Path
 
 from .discovery import Target
 
+# npm 11 spins forever when a cooldown (min-release-age) hides every version
+# matching a range instead of erroring; a hung squash is worse than a warning.
+LOCK_TIMEOUT_S = 300
+
 
 def _run(cmd: list[str], cwd: Path) -> str | None:
     """Run a lock command; return its first error lines on failure, None on success."""
-    proc = subprocess.run(cmd, cwd=cwd, check=False, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(
+            cmd, cwd=cwd, check=False, capture_output=True, text=True, timeout=LOCK_TIMEOUT_S
+        )
+    except subprocess.TimeoutExpired:
+        return f"{cmd[0]} hung for {LOCK_TIMEOUT_S}s (a cooldown hiding every matching version?)"
     if proc.returncode == 0:
         return None
     lines = [line for line in (proc.stderr or proc.stdout).splitlines() if line.strip()]

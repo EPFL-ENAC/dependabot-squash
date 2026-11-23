@@ -1,4 +1,4 @@
-"""Handler for PEP 621 ``[project.dependencies]`` (uv / standard pyproject)."""
+"""Handler for PEP 621 dependencies and PEP 735 ``[dependency-groups]`` (uv, pyproject)."""
 
 from __future__ import annotations
 
@@ -12,23 +12,31 @@ from .base import ManifestHandler
 _OPS = r"==|>=|~=|>|<=|<"
 
 
+def _collect(data: dict) -> list[str]:
+    # update_dep rewrites the whole file, so read_dep must see every table it can
+    # touch; otherwise uv dev deps read as "removed" after being bumped.
+    project = data.get("project", {})
+    reqs = list(project.get("dependencies", []))
+    groups = [*project.get("optional-dependencies", {}).values(),
+              *data.get("dependency-groups", {}).values()]
+    for group in groups:
+        # PEP 735 groups may hold {include-group = "..."} tables, not requirements.
+        reqs.extend(r for r in group if isinstance(r, str))
+    return reqs
+
+
 class PyProjectPep621Handler(ManifestHandler):
     @classmethod
     def discover(cls, directory: Path) -> list[ManifestHandler]:
         path = directory / "pyproject.toml"
         if not path.is_file():
             return []
-        project = tomllib.loads(path.read_text()).get("project", {})
-        if project.get("dependencies") or project.get("optional-dependencies"):
+        if _collect(tomllib.loads(path.read_text())):
             return [cls(path)]
         return []
 
     def _requirements(self) -> list[str]:
-        project = tomllib.loads(self.path.read_text()).get("project", {})
-        reqs = list(project.get("dependencies", []))
-        for group in project.get("optional-dependencies", {}).values():
-            reqs.extend(group)
-        return reqs
+        return _collect(tomllib.loads(self.path.read_text()))
 
     def read_dep(self, pkg: str) -> str | None:
         # Lookahead guards against prefix matches (e.g. "fastapi" vs "fastapi-utils").

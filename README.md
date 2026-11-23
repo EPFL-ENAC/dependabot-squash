@@ -20,6 +20,11 @@ directories to touch — no extra configuration.
 
 Supported ecosystems: **npm**, **uv**, **Poetry**, and **pip** (`requirements*.txt`).
 
+GitHub Actions PRs (**github-actions**) are applied from the PR's own diff,
+because Dependabot pins actions by commit SHA. If a diff no longer applies, the
+tool changes nothing and leaves that PR open. Major action bumps are applied as
+Dependabot wrote them.
+
 > **Tradeoff:** PRs are closed *before* your consolidation commit merges. If you
 > abandon the consolidation, reopen them with `gh pr reopen <number>`.
 
@@ -120,7 +125,7 @@ version number is rewritten.
 
 ## Out of scope
 
-A reusable GitHub Action, ecosystems beyond the four above, semver-major upgrades,
+A reusable GitHub Action, other ecosystems, semver-major package upgrades,
 and pip-tools (`requirements.in` → `requirements.txt`) compilation are not handled.
 
 ## Development

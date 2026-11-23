@@ -30,7 +30,8 @@ team repo can use, driven by the repo's own `.github/dependabot.yml`.
 ## Non-goals (deferred — YAGNI)
 
 - Reusable GitHub Action / scheduled CI mode.
-- Ecosystems beyond the four above (Go, Rust, Docker, GitHub Actions…).
+- Ecosystems beyond the four above (Go, Rust, Docker…). GitHub Actions PRs
+  are the one exception: they are applied from the PR diff (see README).
 - semver-major upgrade handling (the team's `dependabot.yml` ignores majors).
 - pip-tools (`requirements.in` → `requirements.txt`) compilation.
 

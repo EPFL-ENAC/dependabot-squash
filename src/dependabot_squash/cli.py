@@ -8,8 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import actions, lockfiles
 from . import dependabot_pr as gh
-from . import lockfiles
 from .dependabot_pr import Dep, PullRequest
 from .discovery import Target, load_targets
 from .manifests import ManifestHandler, Satisfaction
@@ -81,6 +81,39 @@ def _apply_updates(
                 print(f"    ↷ {dep.name} {dep.version}: not in any manifest (likely transitive)")
                 skipped += 1
     return updated, skipped, touched
+
+
+def _apply_actions(
+    prs: list[PullRequest], diffs: dict[int, str], repo_root: Path, dry_run: bool
+) -> int:
+    applied = 0
+    for pr in prs:
+        diff = diffs[pr.number]
+        if dry_run:
+            print(f"  [dry-run] would apply diff of #{pr.number}")
+            continue
+        # A rerun finds earlier diffs already applied; applying again would fail.
+        if actions.is_applied(diff, repo_root):
+            continue
+        if actions.apply(diff, repo_root):
+            print(f"    ✓ #{pr.number}: {pr.title}")
+            applied += 1
+        else:
+            print(f"    ✗ #{pr.number}: diff does not apply to the working tree")
+    return applied
+
+
+def _classify_actions(
+    prs: list[PullRequest], diffs: dict[int, str], repo_root: Path
+) -> tuple[list[tuple[int, str]], list[str]]:
+    closable: list[tuple[int, str]] = []
+    hold: list[str] = []
+    for pr in prs:
+        if actions.is_applied(diffs[pr.number], repo_root):
+            closable.append((pr.number, pr.title))
+        else:
+            hold.append(f"#{pr.number} — diff does not apply; comment `@dependabot rebase`")
+    return closable, hold
 
 
 def _best_state(dep: Dep, handlers: list[tuple[Target, ManifestHandler]]) -> Satisfaction:
@@ -178,12 +211,17 @@ def main(argv: list[str] | None = None) -> int:
         print("No open dependabot PRs. Nothing to consolidate.")
         return 0
 
-    pr_deps = _gather_pr_deps(prs)
+    action_prs = [pr for pr in prs if actions.is_actions_pr(pr)]
+    dep_prs = [pr for pr in prs if not actions.is_actions_pr(pr)]
+    pr_deps = _gather_pr_deps(dep_prs)
+    action_diffs = {pr.number: actions.pr_diff(pr) for pr in action_prs}
     handlers = [(t, h) for t in targets for h in t.handlers]
 
     print("\n=== Consolidating dependabot updates ===")
     updated, skipped, touched = _apply_updates(pr_deps, handlers, args.dry_run)
-    print(f"\nManifest changes: {updated} updated, {skipped} skipped")
+    applied = _apply_actions(action_prs, action_diffs, repo_root, args.dry_run)
+    print(f"\nManifest changes: {updated} updated, {skipped} skipped, "
+          f"{applied} workflow diff(s) applied")
 
     if args.dry_run:
         print("\n=== DRY RUN — exiting before installs and PR closures ===")
@@ -199,7 +237,10 @@ def main(argv: list[str] | None = None) -> int:
             print("fix the lockfile(s) by hand, then rerun with --skip-install to close the PRs.")
             return 1
 
-    closable, hold = _classify(prs, pr_deps, handlers, args.close_removed)
+    closable, hold = _classify(dep_prs, pr_deps, handlers, args.close_removed)
+    action_closable, action_hold = _classify_actions(action_prs, action_diffs, repo_root)
+    closable += action_closable
+    hold += action_hold
     _report(closable, hold)
 
     if not closable:
